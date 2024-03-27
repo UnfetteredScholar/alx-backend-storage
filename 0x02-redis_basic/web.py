@@ -9,9 +9,6 @@ import redis
 import requests
 
 redis_db = redis.Redis()
-"""
-The module-level Redis instance.
-"""
 
 
 def data_cacher(method: Callable) -> Callable:
@@ -25,7 +22,7 @@ def data_cacher(method: Callable) -> Callable:
         if result:
             return result.decode("utf-8")
         result = method(url)
-        # redis_db.set(f"count:{url}", 0)
+        redis_db.set(f"count:{url}", 0)
         redis_db.setex(f"result:{url}", 10, result)
         return result
 
