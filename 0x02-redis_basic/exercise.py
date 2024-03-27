@@ -2,10 +2,32 @@
 """
 Contains the Cache class definition
 """
-from typing import Callable, Union
+from functools import wraps
+from typing import Any, Callable, Union
 from uuid import uuid4
 
 import redis
+
+
+def count_calls(method: Callable) -> Callable:
+    """
+    Create and return function that increments the count
+    for that key every time the method is called
+    and returns the value returned by the original method.
+
+    key: __qualname__ of method
+    """
+
+    @wraps(method)
+    def counter(self, *args, **kwargs) -> Any:
+        """
+        Invokes the given method after incrementing its count
+        """
+        if isinstance(self._redis, redis.Redis):
+            self._redis.incr(method.__qualname__)
+        return method(self, *args, **kwargs)
+
+    return counter
 
 
 class Cache:
@@ -16,6 +38,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """
         Stores a data value under a random key
