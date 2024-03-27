@@ -30,6 +30,30 @@ def count_calls(method: Callable) -> Callable:
     return counter
 
 
+def call_history(method: Callable) -> Callable:
+    """
+    Store the history of inputs and outputs for a particular function
+    everytime the original function will be called,
+    we will add its input parameters to one list in redis,
+    and store its output into another list.
+
+    key: __qualname__ of method
+    """
+
+    @wraps(method)
+    def tracker(self, *args, **kwargs) -> Any:
+        """
+        Invokes the given method after storing its input and output
+        """
+        if isinstance(self._redis, redis.Redis):
+            res = method(self, *args, **kwargs)
+            self._redis.rpush(f"{method.__qualname__}:inputs", str(args))
+            self._redis.rpush(f"{method.__qualname__}:outputs", str(res))
+        return res
+
+    return tracker
+
+
 class Cache:
     """Defines a cache"""
 
@@ -38,6 +62,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @call_history
     @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """
@@ -48,6 +73,8 @@ class Cache:
         self._redis.set(name, data)
         return name
 
+    @call_history
+    @count_calls
     def get(
         self, key: str, fn: Callable = None
     ) -> Union[str, bytes, int, float]:
@@ -61,10 +88,14 @@ class Cache:
 
         return val
 
+    @call_history
+    @count_calls
     def get_str(self, key: str) -> str:
         """Gets a value from redis and returns it as str"""
         return self.get(key, str)
 
+    @call_history
+    @count_calls
     def get_int(self, key: str) -> int:
         """Gets a value from redis and returns it as int"""
         return self.get(key, int)
